@@ -4,8 +4,18 @@ import pandas as pd
 # Example: ["PatC_102-16-02", "PatB_101-05-01"]
 data_folder = "input_data"
 output_folder = "output_data"
-input_file_name = "Nisku_PatXtC_SP_Sor40pct.xlsx"
-output_file_name = input_file_name.replace(".xlsx", "_monthly_avg_rate.xlsx")
+# List of input files to process
+input_file_names = [
+    "Nisku_PatXtC_SP_Sor40pct.xlsx",
+    "Nisku_PatXtC_SP_Sor47pct.xlsx",
+    "Nisku_PatXtC_SP_Sor33pct.xlsx",
+    "Nisku_PatXtC_DP_Sor33pct_SorF0pct.xlsx",
+    "Nisku_PatXtC_DP_Sor33pct_SorF33pct.xlsx",
+    "Nisku_PatXtC_DP_Sor40pct_SorF0pct.xlsx",
+    "Nisku_PatXtC_DP_Sor40pct_SorF40pct.xlsx",
+    "Nisku_PatXtC_DP_Sor47pct_SorF0pct.xlsx",
+    "Nisku_PatXtC_DP_Sor47pct_SorF47pct.xlsx",
+]
 n_rows_to_skip = 4
 Columns_names = [
     "date",
@@ -16,59 +26,77 @@ Columns_names = [
 ]
 
 
+def process_file(input_file_name):
+    """Process a single Excel file and generate monthly average rates."""
+    print(f"Processing file: {input_file_name}")
+
+    # Generate output filename based on input filename
+    output_file_name = input_file_name.replace(".xlsx", "_monthly_avg_rate.xlsx")
+
+    try:
+        # Load cumulative data
+        df = pd.read_excel(
+            f"{data_folder}/{input_file_name}", header=None, skiprows=n_rows_to_skip
+        )
+        df.rename(
+            columns={
+                0: Columns_names[0],
+                1: Columns_names[1],
+                2: Columns_names[2],
+                3: Columns_names[3],
+                4: Columns_names[4],
+            },
+            inplace=True,
+        )
+        df[Columns_names[0]] = pd.to_datetime(df[Columns_names[0]])
+        df = df.set_index(Columns_names[0])
+
+        # Resample to monthly end to get the last cumulative value per month
+        monthly_cum = df.resample("ME").last()
+
+        # Calculate monthly production by taking difference of consecutive cumulative values
+        monthly_prod = monthly_cum.diff().dropna()
+
+        # Calculate average daily rate for each month
+        # Get the number of days in each month
+        days_in_month = monthly_prod.index.days_in_month
+
+        # Divide monthly production by number of days to get average daily rate
+        monthly_avg_rate = monthly_prod.div(days_in_month, axis=0)
+
+        # Round to 2 decimal places
+        monthly_avg_rate = monthly_avg_rate.round(2)
+
+        # Change index to first day of each month for clarity
+        monthly_avg_rate.index = monthly_avg_rate.index.to_period("M").to_timestamp()
+
+        # Rename columns to reflect that these are now rates
+        monthly_avg_rate.rename(
+            columns={
+                Columns_names[1]: "inj_gas_rate_sm3_per_day",
+                Columns_names[2]: "prd_gas_rate_sm3_per_day",
+                Columns_names[3]: "prd_oil_rate_sm3_per_day",
+                Columns_names[4]: "prd_water_rate_sm3_per_day",
+            },
+            inplace=True,
+        )
+
+        # Save the monthly average rates
+        monthly_avg_rate.to_excel(f"{output_folder}/{output_file_name}", index=True)
+        print(f"Successfully processed {input_file_name} -> {output_file_name}")
+
+    except Exception as e:
+        print(f"Error processing {input_file_name}: {str(e)}")
+
+
 def main():
-    # Load cumulative data
-    df = pd.read_excel(
-        f"{data_folder}/{input_file_name}", header=None, skiprows=n_rows_to_skip
-    )
-    df.rename(
-        columns={
-            0: Columns_names[0],
-            1: Columns_names[1],
-            2: Columns_names[2],
-            3: Columns_names[3],
-            4: Columns_names[4],
-        },
-        inplace=True,
-    )
-    df[Columns_names[0]] = pd.to_datetime(df[Columns_names[0]])
-    df = df.set_index(Columns_names[0])
+    """Process all files in the input_file_names list."""
+    print(f"Starting to process {len(input_file_names)} file(s)...")
 
-    # Resample to monthly end to get the last cumulative value per month
-    monthly_cum = df.resample("ME").last()
+    for input_file_name in input_file_names:
+        process_file(input_file_name)
 
-    # Calculate monthly production by taking difference of consecutive cumulative values
-    monthly_prod = monthly_cum.diff().dropna()
-
-    # Calculate average daily rate for each month
-    # Get the number of days in each month
-    days_in_month = monthly_prod.index.days_in_month
-
-    # Divide monthly production by number of days to get average daily rate
-    monthly_avg_rate = monthly_prod.div(days_in_month, axis=0)
-
-    # Round to 2 decimal places
-    monthly_avg_rate = monthly_avg_rate.round(2)
-
-    # Change index to first day of each month for clarity
-    monthly_avg_rate.index = monthly_avg_rate.index.to_period("M").to_timestamp()
-
-    # Rename columns to reflect that these are now rates
-    monthly_avg_rate.rename(
-        columns={
-            Columns_names[1]: "inj_gas_rate_sm3_per_day",
-            Columns_names[2]: "prd_gas_rate_sm3_per_day",
-            Columns_names[3]: "prd_oil_rate_sm3_per_day",
-            Columns_names[4]: "prd_water_rate_sm3_per_day",
-        },
-        inplace=True,
-    )
-
-    # Save the monthly average rates
-    # output_file = (
-    #     f"{output_folder}/{input_file_name.replace('.xlsx', '_monthly_avg_rate.xlsx')}"
-    # )
-    monthly_avg_rate.to_excel(f"{output_folder}/{output_file_name}", index=True)
+    print("All files processed!")
 
 
 if __name__ == "__main__":
