@@ -1,3 +1,6 @@
+import glob
+import os
+
 import pandas as pd
 
 # You can provide explicit case names here if you prefer not to use --cases
@@ -5,16 +8,9 @@ import pandas as pd
 data_folder = "input_data"
 output_folder = "output_data"
 # List of input files to process
+# If this list is empty, the program will automatically discover all Excel files in the data folder
 input_file_names = [
-    "Nisku_PatXtC_SP_Sor40pct.xlsx",
-    "Nisku_PatXtC_SP_Sor47pct.xlsx",
-    "Nisku_PatXtC_SP_Sor33pct.xlsx",
-    "Nisku_PatXtC_DP_Sor33pct_SorF0pct.xlsx",
-    "Nisku_PatXtC_DP_Sor33pct_SorF33pct.xlsx",
-    "Nisku_PatXtC_DP_Sor40pct_SorF0pct.xlsx",
-    "Nisku_PatXtC_DP_Sor40pct_SorF40pct.xlsx",
-    "Nisku_PatXtC_DP_Sor47pct_SorF0pct.xlsx",
-    "Nisku_PatXtC_DP_Sor47pct_SorF47pct.xlsx",
+    # "Nisku_PatX_2Ofst.xlsx",  # Uncomment to use specific files
 ]
 n_rows_to_skip = 4
 Columns_names = [
@@ -24,6 +20,21 @@ Columns_names = [
     "prd_oil_cum_sm3",
     "prd_water_cum_sm3",
 ]
+
+
+def get_excel_files_from_folder(folder_path):
+    """Automatically discover all Excel files in the specified folder."""
+    excel_extensions = ["*.xlsx", "*.xls"]
+    excel_files = []
+
+    for extension in excel_extensions:
+        pattern = os.path.join(folder_path, extension)
+        excel_files.extend(glob.glob(pattern))
+
+    # Extract just the filenames (not full paths)
+    excel_filenames = [os.path.basename(file) for file in excel_files]
+
+    return sorted(excel_filenames)
 
 
 def process_file(input_file_name):
@@ -90,10 +101,26 @@ def process_file(input_file_name):
 
 
 def main():
-    """Process all files in the input_file_names list."""
-    print(f"Starting to process {len(input_file_names)} file(s)...")
+    """Process files automatically based on input_file_names list."""
 
-    for input_file_name in input_file_names:
+    if not input_file_names:  # If list is empty
+        # Auto-discover Excel files
+        files_to_process = get_excel_files_from_folder(data_folder)
+        print(
+            f"Input file list is empty. Auto-discovered Excel files in '{data_folder}': {files_to_process}"
+        )
+
+        if not files_to_process:
+            print(f"No Excel files found in '{data_folder}' folder!")
+            return
+    else:
+        # Use manually specified file list
+        files_to_process = input_file_names
+        print(f"Using manually specified file list: {files_to_process}")
+
+    print(f"\nStarting to process {len(files_to_process)} file(s)...")
+
+    for input_file_name in files_to_process:
         process_file(input_file_name)
 
     print("All files processed!")
