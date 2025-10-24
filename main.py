@@ -9,6 +9,8 @@ FIELD_SCOPE = "FIELD"
 WELL_SCOPE = "WELL"
 CUML_PREFIX = "CUML"
 PRESSURE_PREFIX = "PRESSURE"
+FIELD_UNITS = "ECLIPSE_FIELD"
+METRIC_UNITS = "ECLIPSE_METRIC"
 
 
 # =============================================================================
@@ -169,47 +171,91 @@ def _calculate_well_monthly_rates(df: pd.DataFrame, n_decimals: int) -> pd.DataF
     return pd.concat(well_dataframes, ignore_index=False)
 
 
-def format_df_monthly(df_input: pd.DataFrame, data_scope: str) -> pd.DataFrame:
+def format_df_monthly(
+    df_input: pd.DataFrame, data_scope: str, unit_system: str = FIELD_UNITS
+) -> pd.DataFrame:
     """Format monthly DataFrame with proper column names and date indexing.
 
     Args:
         df_input: Input DataFrame with monthly rates
-        data_scope: Either 'field' or 'well' to determine column mapping
+        data_scope: Either 'FIELD' or 'WELL' to determine column mapping
+        unit_system: Either 'ECLIPSE_FIELD' or 'ECLIPSE_METRIC' for unit system
 
     Returns:
         Formatted DataFrame with renamed columns and adjusted index
     """
     df = df_input.copy()
 
-    column_mapping = _get_column_mapping(data_scope)
+    column_mapping = _get_column_mapping(data_scope, unit_system)
     df = df.rename(columns=column_mapping)
     df = _adjust_monthly_index(df)
 
     return df
 
 
-def _get_column_mapping(data_scope: str) -> dict:
-    """Get column mapping based on data scope."""
-    if data_scope == FIELD_SCOPE:
-        return {
-            "FGIT_GAS_INJECTION_CUML_MSCF": "FIELD_GAS_INJECTION_RATE(MSCF/DAY)",
-            "FWPT_WATER_PRODUCTION_CUML_STB": "FIELD_WATER_PRODUCTION_RATE(STB/DAY)",
-            "FWIT_WATER_INJECTION_CUML_STB": "FIELD_WATER_INJECTION_RATE(STB/DAY)",
-            "FGPT_GAS_PRODUCTION_CUML_MSCF": "FIELD_GAS_PRODUCTION_RATE(MSCF/DAY)",
-            "FOPT_OIL_PRODUCTION_CUML_STB": "FIELD_OIL_PRODUCTION_RATE(STB/DAY)",
-            "FPR_PRESSURE_PSIA": "AVG_RES_PRESSURE(PSIA)",
-        }
-    elif data_scope == WELL_SCOPE:
-        return {
-            "WGIT_GAS_INJECTION_CUML_MSCF": "WELL_GAS_INJECTION_RATE(MSCF/DAY)",
-            "WWPT_WATER_PRODUCTION_CUML_STB": "WELL_WATER_PRODUCTION_RATE(STB/DAY)",
-            "WWIT_WATER_INJECTION_CUML_STB": "WELL_WATER_INJECTION_RATE(STB/DAY)",
-            "WGPT_GAS_PRODUCTION_CUML_MSCF": "WELL_GAS_PRODUCTION_RATE(MSCF/DAY)",
-            "WOPT_OIL_PRODUCTION_CUML_STB": "WELL_OIL_PRODUCTION_RATE(STB/DAY)",
-            "WBHP_BOTTOM_HOLE_PRESSURE_PSIA": "WELL_BOTTOM_HOLE_PRESSURE(PSIA)",
-        }
-    else:
-        raise ValueError(f"Invalid data_scope: {data_scope}")
+def _get_column_mapping(data_scope: str, unit_system: str) -> dict:
+    """Get column mapping based on data scope and unit system.
+
+    Args:
+        data_scope: Either 'FIELD' or 'WELL' to determine processing approach
+        unit_system: Either 'ECLIPSE_FIELD' or 'ECLIPSE_METRIC' for unit system
+
+    Returns:
+        Dictionary mapping original column names to formatted column names
+    """
+    # Define all possible column mappings
+    column_mappings = {
+        FIELD_SCOPE: {
+            "ECLIPSE_FIELD": {
+                "FGIT_GAS_INJECTION_CUML_MSCF": "FIELD_GAS_INJECTION_RATE(MSCF/DAY)",
+                "FWPT_WATER_PRODUCTION_CUML_STB": "FIELD_WATER_PRODUCTION_RATE(STB/DAY)",
+                "FWIT_WATER_INJECTION_CUML_STB": "FIELD_WATER_INJECTION_RATE(STB/DAY)",
+                "FGPT_GAS_PRODUCTION_CUML_MSCF": "FIELD_GAS_PRODUCTION_RATE(MSCF/DAY)",
+                "FOPT_OIL_PRODUCTION_CUML_STB": "FIELD_OIL_PRODUCTION_RATE(STB/DAY)",
+                "FPR_PRESSURE_PSIA": "AVG_RES_PRESSURE(PSIA)",
+            },
+            "ECLIPSE_METRIC": {
+                "FGIT_GAS_INJECTION_CUML_SM3": "FIELD_GAS_INJECTION_RATE(SM3/DAY)",
+                "FWPT_WATER_PRODUCTION_CUML_SM3": "FIELD_WATER_PRODUCTION_RATE(SM3/DAY)",
+                "FWIT_WATER_INJECTION_CUML_SM3": "FIELD_WATER_INJECTION_RATE(SM3/DAY)",
+                "FGPT_GAS_PRODUCTION_CUML_SM3": "FIELD_GAS_PRODUCTION_RATE(SM3/DAY)",
+                "FOPT_OIL_PRODUCTION_CUML_SM3": "FIELD_OIL_PRODUCTION_RATE(SM3/DAY)",
+                "FPR_PRESSURE_BARSA": "AVG_RES_PRESSURE(BARSA)",
+            },
+        },
+        WELL_SCOPE: {
+            "ECLIPSE_FIELD": {
+                "WGIT_GAS_INJECTION_CUML_MSCF": "WELL_GAS_INJECTION_RATE(MSCF/DAY)",
+                "WWPT_WATER_PRODUCTION_CUML_STB": "WELL_WATER_PRODUCTION_RATE(STB/DAY)",
+                "WWIT_WATER_INJECTION_CUML_STB": "WELL_WATER_INJECTION_RATE(STB/DAY)",
+                "WGPT_GAS_PRODUCTION_CUML_MSCF": "WELL_GAS_PRODUCTION_RATE(MSCF/DAY)",
+                "WOPT_OIL_PRODUCTION_CUML_STB": "WELL_OIL_PRODUCTION_RATE(STB/DAY)",
+                "WBHP_BOTTOM_HOLE_PRESSURE_PSIA": "WELL_BOTTOM_HOLE_PRESSURE(PSIA)",
+            },
+            "ECLIPSE_METRIC": {
+                "WGIT_GAS_INJECTION_CUML_SM3": "WELL_GAS_INJECTION_RATE(SM3/DAY)",
+                "WWPT_WATER_PRODUCTION_CUML_SM3": "WELL_WATER_PRODUCTION_RATE(SM3/DAY)",
+                "WWIT_WATER_INJECTION_CUML_SM3": "WELL_WATER_INJECTION_RATE(SM3/DAY)",
+                "WGPT_GAS_PRODUCTION_CUML_SM3": "WELL_GAS_PRODUCTION_RATE(SM3/DAY)",
+                "WOPT_OIL_PRODUCTION_CUML_SM3": "WELL_OIL_PRODUCTION_RATE(SM3/DAY)",
+                "WBHP_BOTTOM_HOLE_PRESSURE_BARSA": "WELL_BOTTOM_HOLE_PRESSURE(BARSA)",
+            },
+        },
+    }
+
+    # Validate inputs
+    if data_scope not in column_mappings:
+        raise ValueError(
+            f"Invalid data_scope: {data_scope}. Must be '{FIELD_SCOPE}' or '{WELL_SCOPE}'"
+        )
+
+    if unit_system not in column_mappings[data_scope]:
+        raise ValueError(
+            f"Invalid unit_system: {unit_system}. Must be 'ECLIPSE_FIELD' or 'ECLIPSE_METRIC'"
+        )
+
+    # Return the specific mapping for the given data scope and unit system
+    return column_mappings[data_scope][unit_system]
 
 
 def _adjust_monthly_index(df: pd.DataFrame) -> pd.DataFrame:
@@ -224,14 +270,18 @@ def _adjust_monthly_index(df: pd.DataFrame) -> pd.DataFrame:
 # MAIN PROCESSING PIPELINE
 # =============================================================================
 def gen_df_monthly_rates(
-    csv_file_path: str, data_scope: str, save_intermediate_data: bool
+    csv_file_path: str,
+    data_scope: str,
+    save_intermediate_data: bool,
+    unit_system: str = FIELD_UNITS,
 ) -> int:
     """Process field data from CSV to monthly rates.
 
     Args:
         csv_file_path: Path to the input CSV file
-        data_scope: Either 'field' or 'well' to determine processing approach
+        data_scope: Either 'FIELD' or 'WELL' to determine processing approach
         save_intermediate_data: Whether to save intermediate processed data
+        unit_system: Either 'ECLIPSE_FIELD' or 'ECLIPSE_METRIC' for unit system
 
     Returns:
         1 if processing completed successfully
@@ -244,7 +294,7 @@ def gen_df_monthly_rates(
             df.to_csv(intermediate_path, index=True)
 
         df_monthly_rates = get_df_monthly_rates(df, data_scope)
-        df_monthly_rates = format_df_monthly(df_monthly_rates, data_scope)
+        df_monthly_rates = format_df_monthly(df_monthly_rates, data_scope, unit_system)
 
         output_path = f"{csv_file_path.replace('.CSV', '')}_MR.CSV"
         df_monthly_rates.to_csv(output_path, index=True)
@@ -261,11 +311,12 @@ def gen_df_monthly_rates(
 # =============================================================================
 if __name__ == "__main__":
     # Configuration
-    SIM_FOLDER_PATH = "D:/temp/0_sim_models/0_BasicModelFromIXF"
-    SIM_AFI_FILE_NAME = "a_base_model"
+    SIM_FOLDER_PATH = "D:/SimulationModels_2025/Nisku_D65AppModel.sim/NISKU_PATX_2OFSTPRDS_SP_SOR40PCT_REPEAT"
+    SIM_AFI_FILE_NAME = "NISKU_PATX_2OFSTPRDS_SP_SOR40PCT_REPEAT"
 
     CSV_FOLDER_PATH = f"{SIM_FOLDER_PATH}/{SIM_AFI_FILE_NAME}_summary_results/"
-    DATA_SCOPE = "field"  # "field" or "well"
+    DATA_SCOPE = "well"  # "field" or "well"
+    UNIT_SYSTEM = METRIC_UNITS  # "ECLIPSE_FIELD" or "ECLIPSE_METRIC"
     SAVE_INTERMEDIATE_DATA = False
 
     # Validate and set data scope
@@ -281,7 +332,7 @@ if __name__ == "__main__":
 
     try:
         result = gen_df_monthly_rates(
-            CSV_FILE_PATH, data_scope_upper, SAVE_INTERMEDIATE_DATA
+            CSV_FILE_PATH, data_scope_upper, SAVE_INTERMEDIATE_DATA, UNIT_SYSTEM
         )
         if result == 1:
             print("Processing completed successfully!")
