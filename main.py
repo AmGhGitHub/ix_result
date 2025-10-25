@@ -1,6 +1,7 @@
 from typing import List
 
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
 
 # =============================================================================
 # CONSTANTS
@@ -135,8 +136,16 @@ def get_df_monthly_rates(
 
 def _calculate_field_monthly_rates(df: pd.DataFrame, n_decimals: int) -> pd.DataFrame:
     """Calculate monthly rates for field data."""
-    df_monthly_cum = df.resample("ME").last()
+    df_monthly_cum = df.resample(
+        "MS"
+    ).first()  # Month Start - get first value of each month
     df_monthly_prod = df_monthly_cum.diff().dropna()
+
+    # After diff(), the row at month N start contains: (cum_start_N - cum_start_N-1)
+    # Since cumulative at start of month N ≈ cumulative at end of month N-1,
+    # this represents production during month N-1
+    # Shift index back by 1 month to align production with the correct month
+    df_monthly_prod.index = df_monthly_prod.index - pd.DateOffset(months=1)
     days_in_month = df_monthly_prod.index.days_in_month
 
     df_mr = pd.DataFrame(index=df_monthly_prod.index)
@@ -144,7 +153,10 @@ def _calculate_field_monthly_rates(df: pd.DataFrame, n_decimals: int) -> pd.Data
         if CUML_PREFIX in col and df[col].dtype == float:
             df_mr[col] = round(df_monthly_prod[col] / days_in_month, n_decimals)
         elif PRESSURE_PREFIX in col and df[col].dtype == float:
-            df_mr[col] = round(df[col].resample("ME").mean(), n_decimals)
+            # For pressure, resample to month start, take mean, then shift to align with production
+            pressure_monthly = df[col].resample("MS").mean()
+            pressure_monthly.index = pressure_monthly.index - pd.DateOffset(months=1)
+            df_mr[col] = round(pressure_monthly, n_decimals)
     return df_mr
 
 
@@ -155,8 +167,13 @@ def _calculate_well_monthly_rates(df: pd.DataFrame, n_decimals: int) -> pd.DataF
     for name in df["Entity Name"].unique():
         df_w = df.loc[df["Entity Name"] == name, :].copy()
         df_w = df_w.drop(columns=["Entity Name"])
-        df_monthly_cum = df_w.resample("ME").last()
+        df_monthly_cum = df_w.resample(
+            "MS"
+        ).first()  # Month Start - get first value of each month
         df_monthly_prod = df_monthly_cum.diff().dropna()
+
+        # Shift index back by 1 month to align production with the correct month
+        df_monthly_prod.index = df_monthly_prod.index - pd.DateOffset(months=1)
         days_in_month = df_monthly_prod.index.days_in_month
 
         df_mr = pd.DataFrame(index=df_monthly_prod.index)
@@ -164,7 +181,12 @@ def _calculate_well_monthly_rates(df: pd.DataFrame, n_decimals: int) -> pd.DataF
             if CUML_PREFIX in col:
                 df_mr[col] = round(df_monthly_prod[col] / days_in_month, n_decimals)
             elif PRESSURE_PREFIX in col:
-                df_mr[col] = round(df_w[col].resample("ME").mean(), n_decimals)
+                # For pressure, resample to month start, take mean, then shift to align
+                pressure_monthly = df_w[col].resample("MS").mean()
+                pressure_monthly.index = pressure_monthly.index - pd.DateOffset(
+                    months=1
+                )
+                df_mr[col] = round(pressure_monthly, n_decimals)
         df_mr.insert(0, "WELL_NAME", name)
         well_dataframes.append(df_mr)
 
@@ -261,7 +283,6 @@ def _get_column_mapping(data_scope: str, unit_system: str) -> dict:
 def _adjust_monthly_index(df: pd.DataFrame) -> pd.DataFrame:
     """Adjust the monthly index for proper date formatting."""
     df.index = df.index.to_period("M").to_timestamp()
-    df.index = df.index - pd.DateOffset(months=1)
     df.index = df.index + pd.offsets.MonthEnd(1)
     return df
 
@@ -315,7 +336,7 @@ if __name__ == "__main__":
     SIM_AFI_FILE_NAME = "NISKU_PATX_2OFSTPRDS_SP_SOR40PCT_REPEAT"
 
     CSV_FOLDER_PATH = f"{SIM_FOLDER_PATH}/{SIM_AFI_FILE_NAME}_summary_results/"
-    DATA_SCOPE = "well"  # "field" or "well"
+    DATA_SCOPE = "field"  # "field" or "well"
     UNIT_SYSTEM = METRIC_UNITS  # "ECLIPSE_FIELD" or "ECLIPSE_METRIC"
     SAVE_INTERMEDIATE_DATA = False
 
